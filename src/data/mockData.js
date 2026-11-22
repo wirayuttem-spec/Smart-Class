@@ -726,6 +726,69 @@ export function addNewRoom({ id, name, adminCode, department, advisor, studentCo
   return { success: true, room: newRoom, rooms: updatedRooms };
 }
 
+// Delete Classroom (Admin Functionality)
+export function deleteRoom(roomId) {
+  const rooms = getStoredRooms();
+  const normalizedId = roomId.trim().toUpperCase();
+
+  if (rooms.length <= 1) {
+    return { 
+      success: false, 
+      message: 'ไม่สามารถลบห้องเรียนได้ ต้องมีห้องเรียนอย่างน้อย 1 ห้องในระบบ' 
+    };
+  }
+
+  const targetRoomIndex = rooms.findIndex((r) => r.id.toUpperCase() === normalizedId);
+  if (targetRoomIndex === -1) {
+    return { 
+      success: false, 
+      message: `ไม่พบห้องเรียน "${normalizedId}" ในระบบ` 
+    };
+  }
+
+  const updatedRooms = rooms.filter((r) => r.id.toUpperCase() !== normalizedId);
+  saveStoredRooms(updatedRooms);
+
+  const fallbackRoomId = updatedRooms[0].id;
+
+  // Clean up schedule from STORAGE_SCHEDULES_KEY
+  try {
+    const existing = localStorage.getItem(STORAGE_SCHEDULES_KEY);
+    if (existing) {
+      const allSchedules = JSON.parse(existing);
+      delete allSchedules[normalizedId];
+      localStorage.setItem(STORAGE_SCHEDULES_KEY, JSON.stringify(allSchedules));
+    }
+  } catch (e) {
+    console.error('Error removing schedule for deleted room', e);
+  }
+
+  // Reassign any users registered in this room to the fallback room
+  try {
+    const users = getRegisteredUsers();
+    let usersUpdated = false;
+    const remappedUsers = users.map((u) => {
+      if (u.roomId && u.roomId.toUpperCase() === normalizedId) {
+        usersUpdated = true;
+        return { ...u, roomId: fallbackRoomId };
+      }
+      return u;
+    });
+    if (usersUpdated) {
+      saveRegisteredUsers(remappedUsers);
+    }
+  } catch (e) {
+    console.error('Error remapping users of deleted room', e);
+  }
+
+  return { 
+    success: true, 
+    rooms: updatedRooms, 
+    deletedRoomId: normalizedId,
+    fallbackRoomId 
+  };
+}
+
 export function getStoredSchedules(roomId) {
   try {
     const data = localStorage.getItem(STORAGE_SCHEDULES_KEY);

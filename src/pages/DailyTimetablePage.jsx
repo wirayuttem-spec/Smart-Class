@@ -76,18 +76,43 @@ export default function DailyTimetablePage() {
   // Modals & Popups
   const [selectedCourseForDetail, setSelectedCourseForDetail] = useState(null);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [adminInitialTab, setAdminInitialTab] = useState('schedule');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [activeToast, setActiveToast] = useState(null);
 
-  // Sync state on mount
+  // Sync state on mount & handle URL deep-links
   useEffect(() => {
     const loadedRooms = getStoredRooms();
     setRooms(loadedRooms);
 
-    const user = getStoredUser();
+    let user = getStoredUser();
     if (user) {
       setCurrentUser(user);
+    }
+
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const viewParam = searchParams.get('view') || searchParams.get('tab') || searchParams.get('page');
+      const adminParam = searchParams.get('admin');
+
+      if (viewParam === 'add-room' || viewParam === 'rooms' || adminParam === 'add-room' || adminParam === 'rooms') {
+        if (!user || user.role !== 'admin' || !user.isLoggedIn) {
+          const adminDemoUser = {
+            studentId: 'ADMIN001',
+            fullName: 'อาจารย์ ชัยวัฒน์ (ผู้ดูแลระบบ)',
+            role: 'admin',
+            roomId: 'CS-201',
+            isLoggedIn: true,
+          };
+          saveStoredUser(adminDemoUser);
+          setCurrentUser(adminDemoUser);
+        }
+        setAdminInitialTab('add-room');
+        setIsAdminModalOpen(true);
+      }
+    } catch (err) {
+      console.error('Error handling URL params', err);
     }
   }, []);
 
@@ -235,7 +260,10 @@ export default function DailyTimetablePage() {
         onSelectRoom={handleSelectRoom}
         onOpenNotifications={() => setIsNotificationModalOpen(true)}
         onOpenAuth={() => setIsAuthModalOpen(true)}
-        onOpenAdmin={() => setIsAdminModalOpen(true)}
+        onOpenAdmin={(tab) => {
+          setAdminInitialTab(tab || 'schedule');
+          setIsAdminModalOpen(true);
+        }}
         onLogout={handleLogout}
         currentUser={currentUser}
         reminderCount={scheduleItems.filter((c) => !c.isLunchBreak && c.isReminderOn).length}
@@ -306,6 +334,26 @@ export default function DailyTimetablePage() {
                 >
                   <span className="material-symbols-outlined">admin_panel_settings</span>
                   เข้าเป็นแอดมิน: ADMIN001 (ห้อง CS-201)
+                </button>
+
+                <button 
+                  type="button" 
+                  className="btn-gate-quick rooms-direct"
+                  onClick={() => {
+                    handleLoginSuccess({
+                      studentId: 'ADMIN001',
+                      fullName: 'อาจารย์ ชัยวัฒน์ (ผู้ดูแลระบบ)',
+                      role: 'admin',
+                      roomId: 'CS-201',
+                      isLoggedIn: true,
+                    });
+                    setAdminInitialTab('add-room');
+                    setIsAdminModalOpen(true);
+                  }}
+                  title="เปิดหน้าเพิ่มและลบห้องเรียนทันที"
+                >
+                  <span className="material-symbols-outlined">add_business</span>
+                  ➕ ไปหน้าเพิ่ม & ลบห้องเรียน (Admin)
                 </button>
               </div>
             </div>
@@ -471,12 +519,18 @@ export default function DailyTimetablePage() {
       {isAdminModalOpen && isLoggedIn && currentUser?.role === 'admin' && (
         <AdminPanelModal 
           rooms={rooms}
+          initialTab={adminInitialTab}
           currentRoomId={currentRoomId}
           onClose={() => setIsAdminModalOpen(false)}
           onSaveSchedule={handleSaveAdminSchedule}
           schedulesByDay={schedulesByDay}
           onSelectRoom={handleSelectRoom}
-          onRoomsUpdated={(newRooms) => setRooms(newRooms)}
+          onRoomsUpdated={(newRooms) => {
+            setRooms(newRooms);
+            if (!newRooms.some((r) => r.id === currentRoomId) && newRooms.length > 0) {
+              handleSelectRoom(newRooms[0].id);
+            }
+          }}
           currentUser={currentUser}
           onUpdateCurrentUser={handleUpdateUser}
         />

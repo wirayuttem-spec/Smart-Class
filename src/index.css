@@ -3118,14 +3118,37 @@ input:checked + .slider-round:before {
   }
 }
 
+.existing-rooms-header {
+  margin-bottom: 12px;
+}
+
+.existing-rooms-subtitle {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
 .room-card-preview {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: var(--radius-md);
-  padding: 10px 12px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.room-card-preview:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.room-card-preview.active-room-card {
+  border-color: #93c5fd;
+  background: #f0f7ff;
 }
 
 .preview-top {
@@ -3134,8 +3157,24 @@ input:checked + .slider-round:before {
   align-items: center;
 }
 
+.preview-left-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.preview-current-tag {
+  font-size: 10px;
+  font-weight: 600;
+  background: #dbeafe;
+  color: #1d4ed8;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  border: 1px solid #bfdbfe;
+}
+
 .preview-room-id {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: #2563eb;
 }
@@ -3144,6 +3183,9 @@ input:checked + .slider-round:before {
   font-size: 11px;
   color: #64748b;
   font-family: monospace;
+  background: #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .preview-room-name {
@@ -3157,6 +3199,61 @@ input:checked + .slider-round:before {
   color: #64748b;
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
+}
+
+.preview-advisor-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #475569;
+}
+
+.preview-advisor-row .material-symbols-outlined {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.preview-footer-action {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-delete-room {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-delete-room .material-symbols-outlined {
+  font-size: 15px;
+}
+
+.btn-delete-room:hover:not(:disabled) {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(220, 38, 38, 0.15);
+}
+
+.btn-delete-room:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(1);
 }
 
 .demo-subhint {
@@ -4971,3 +5068,423 @@ input:checked + .slider-round:before {
 
 
 
+
+/* ==========================================================================
+   CLASSROOM ADD & DELETE ENHANCEMENTS & CONFIRMATION MODAL
+   ========================================================================== */
+
+/* Header Manage Rooms button */
+.btn-header-manage-rooms {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 9999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 4px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-header-manage-rooms:hover {
+  background: #1d4ed8;
+  transform: scale(1.03);
+}
+
+.btn-header-manage-rooms .material-symbols-outlined {
+  font-size: 13px;
+}
+
+/* Landing Gate direct button */
+.btn-gate-quick.rooms-direct {
+  background: #eef2ff;
+  color: #4338ca;
+  border-color: #c7d2fe;
+}
+
+.btn-gate-quick.rooms-direct:hover {
+  background: #e0e7ff;
+  border-color: #a5b4fc;
+}
+
+/* Unlock card shortcut to rooms */
+.unlock-switch-to-rooms-box {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.unlock-or-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.btn-switch-to-rooms {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-switch-to-rooms:hover {
+  background: #dbeafe;
+  color: #1e40af;
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+}
+
+.btn-switch-to-rooms .material-symbols-outlined {
+  font-size: 16px;
+}
+
+/* Existing Rooms Header & Toolbar */
+.existing-rooms-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+@media (min-width: 640px) {
+  .existing-rooms-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+}
+
+.existing-rooms-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.existing-rooms-title .material-symbols-outlined {
+  font-size: 18px;
+  color: #2563eb;
+}
+
+.existing-rooms-subtitle {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+/* Quick Delete Toolbar */
+.quick-delete-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  padding: 8px 12px;
+  border-radius: 10px;
+  min-width: 260px;
+}
+
+.quick-delete-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9f1239;
+}
+
+.quick-delete-label .material-symbols-outlined {
+  font-size: 15px;
+}
+
+.quick-delete-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.quick-delete-select {
+  font-size: 12px !important;
+  padding: 5px 8px !important;
+  height: 32px;
+  border-color: #fca5a5 !important;
+  background-color: #ffffff !important;
+  flex: 1;
+}
+
+.btn-quick-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #e11d48;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.btn-quick-delete:hover:not(:disabled) {
+  background: #be123c;
+  transform: translateY(-1px);
+}
+
+.btn-quick-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
+.btn-quick-delete .material-symbols-outlined {
+  font-size: 14px;
+}
+
+/* Confirmation Modal for Classroom Deletion (ถามยืนยันอีกรอบว่าจะลบไหม) */
+.delete-confirm-overlay {
+  z-index: 500 !important;
+  background: rgba(15, 23, 42, 0.72) !important;
+  backdrop-filter: blur(6px) !important;
+}
+
+.delete-confirm-card {
+  max-width: 480px !important;
+  background: #ffffff !important;
+  border-radius: 20px !important;
+  border: 1px solid #fecdd3 !important;
+  box-shadow: 0 25px 50px -12px rgba(159, 18, 57, 0.25) !important;
+  overflow: hidden;
+  animation: slideUpModal 0.22s ease-out;
+}
+
+.delete-confirm-header {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff1f2;
+  border-bottom: 1px solid #ffe4e6;
+  position: relative;
+}
+
+.delete-confirm-icon-circle {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #ffe4e6;
+  color: #e11d48;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.delete-confirm-icon-circle .material-symbols-outlined {
+  font-size: 24px;
+}
+
+.delete-confirm-title-wrap {
+  flex: 1;
+}
+
+.delete-confirm-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #9f1239;
+}
+
+.delete-confirm-sub {
+  font-size: 12px;
+  color: #be123c;
+}
+
+.delete-confirm-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Target Room Info Box */
+.delete-room-target-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.target-badge-col {
+  flex-shrink: 0;
+}
+
+.target-room-badge {
+  display: inline-block;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  letter-spacing: 0.5px;
+}
+
+.target-info-col {
+  flex: 1;
+}
+
+.target-room-name {
+  display: block;
+  font-size: 14px;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+.target-room-meta {
+  font-size: 11px;
+  color: #64748b;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Danger Warning Box */
+.delete-danger-warning-box {
+  display: flex;
+  gap: 10px;
+  background: #fff7ed;
+  border: 1.5px solid #ffedd5;
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: #9a3412;
+}
+
+.delete-danger-warning-box .danger-icon {
+  color: #ea580c;
+  font-size: 22px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.danger-text-content {
+  flex: 1;
+}
+
+.danger-headline {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #c2410c;
+  margin-bottom: 4px;
+}
+
+.danger-bullet-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #7c2d12;
+}
+
+.warning-reassign {
+  color: #b45309;
+  font-weight: 600;
+  margin-top: 3px;
+}
+
+/* Prompt Bubble */
+.delete-confirmation-prompt {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  text-align: center;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+/* Confirmation Actions */
+.delete-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.btn-delete-cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-delete-cancel:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.btn-delete-cancel .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.btn-danger-confirm-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 10px;
+  border: none;
+  background: #dc2626;
+  color: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-danger-confirm-delete:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.4);
+}
+
+.btn-danger-confirm-delete:active {
+  transform: translateY(0);
+}
+
+.btn-danger-confirm-delete .material-symbols-outlined {
+  font-size: 18px;
+}

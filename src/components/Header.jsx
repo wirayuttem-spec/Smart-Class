@@ -65,6 +65,17 @@ export default function Header({
                     );
                   })}
                 </select>
+                {isAdminLoggedIn && (
+                  <button
+                    type="button"
+                    className="btn-header-manage-rooms"
+                    onClick={() => onOpenAdmin && onOpenAdmin('add-room')}
+                    title="จัดการ เพิ่ม และ ลบห้องเรียนในระบบ"
+                  >
+                    <span className="material-symbols-outlined">add_circle</span>
+                    <span>เพิ่ม/ลบห้อง</span>
+                  </button>
+                )}
               </div>
             )}
           </div>

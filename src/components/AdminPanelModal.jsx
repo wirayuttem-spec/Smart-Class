@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  getStoredRooms, 
-  addNewRoom, 
-  getRegisteredUsers, 
+import {
+  getStoredRooms,
+  addNewRoom,
+  deleteRoom,
+  getRegisteredUsers,
   deleteRegisteredUser,
   getRoomRegisteredStudentsCount,
   calculateRealtimeCourseStatus,
@@ -10,11 +11,12 @@ import {
 } from '../data/mockData';
 import AvatarPickerModal from './AvatarPickerModal';
 
-export default function AdminPanelModal({ 
-  rooms = [], 
-  currentRoomId = 'CS-201', 
-  onClose, 
-  onSaveSchedule, 
+export default function AdminPanelModal({
+  rooms = [],
+  currentRoomId = 'CS-201',
+  initialTab = 'schedule',
+  onClose,
+  onSaveSchedule,
   schedulesByDay = {},
   onSelectRoom,
   onRoomsUpdated,
@@ -29,7 +31,11 @@ export default function AdminPanelModal({
   const [authError, setAuthError] = useState('');
 
   // Admin Section Navigation: 'schedule' | 'users' | 'add-room'
-  const [adminTab, setAdminTab] = useState('schedule');
+  const [adminTab, setAdminTab] = useState(initialTab || 'schedule');
+
+  // Room Deletion Confirmation State (มีถามยืนยันอีกรอบว่าจะลบไหม)
+  const [roomToDelete, setRoomToDelete] = useState(null);
+  const [quickDeleteTargetId, setQuickDeleteTargetId] = useState('');
 
   // Schedule editing state
   const [activeDay, setActiveDay] = useState('wed');
@@ -261,9 +267,9 @@ export default function AdminPanelModal({
       onRoomsUpdated(res.rooms);
     }
 
-    setAddRoomStatus({ 
-      error: '', 
-      success: `สร้างห้องเรียน "${res.room.id}" สำเร็จเรียบร้อย! สามารถเริ่มจัดตารางเรียนได้ทันที` 
+    setAddRoomStatus({
+      error: '',
+      success: `สร้างห้องเรียน "${res.room.id}" สำเร็จเรียบร้อย! สามารถเริ่มจัดตารางเรียนได้ทันที`
     });
 
     setNewRoomForm({
@@ -274,6 +280,74 @@ export default function AdminPanelModal({
       advisor: '',
       studentCount: 35,
     });
+  };
+
+  // Request Delete Classroom (Open confirmation modal)
+  const handleRequestDeleteRoom = (room) => {
+    if (!room) return;
+    if (allRooms.length <= 1) {
+      setAddRoomStatus({
+        error: 'ไม่สามารถลบห้องเรียนได้ เนื่องจากต้องมีห้องเรียนคงเหลืออย่างน้อย 1 ห้องในระบบ',
+        success: ''
+      });
+      return;
+    }
+
+    const regCount = getRoomRegisteredStudentsCount(room.id);
+    setRoomToDelete({
+      id: room.id,
+      name: room.name || room.id,
+      adminCode: room.adminCode,
+      department: room.department,
+      advisor: room.advisor,
+      studentCount: room.studentCount || 35,
+      regCount: regCount
+    });
+  };
+
+  // Confirm Delete Classroom Action (ลบจริงหลังจากผู้ใช้กดยืนยันในกล่องข้อความเตือน)
+  const handleConfirmDeleteRoom = () => {
+    if (!roomToDelete) return;
+    const roomId = roomToDelete.id;
+
+    if (allRooms.length <= 1) {
+      setAddRoomStatus({
+        error: 'ไม่สามารถลบห้องเรียนได้ ต้องมีห้องเรียนคงเหลืออย่างน้อย 1 ห้องในระบบ',
+        success: ''
+      });
+      setRoomToDelete(null);
+      return;
+    }
+
+    const res = deleteRoom(roomId);
+    if (!res.success) {
+      setAddRoomStatus({ error: res.message, success: '' });
+      setRoomToDelete(null);
+      return;
+    }
+
+    setAllRooms(res.rooms);
+    if (onRoomsUpdated) {
+      onRoomsUpdated(res.rooms);
+    }
+
+    // If the currently selected room in admin or main was the deleted room, switch to fallback
+    if (selectedRoomId.toUpperCase() === roomId.toUpperCase()) {
+      const fallback = res.fallbackRoomId || res.rooms[0].id;
+      setSelectedRoomId(fallback);
+      setPasscode('');
+      setIsUnlocked(false);
+      if (onSelectRoom) {
+        onSelectRoom(fallback);
+      }
+    }
+
+    setAddRoomStatus({
+      error: '',
+      success: `ลบห้องเรียน "${roomId}" ออกจากระบบสำเร็จเรียบร้อยแล้ว`,
+    });
+    setRoomToDelete(null);
+    setQuickDeleteTargetId('');
   };
 
   // Delete User from Database
@@ -327,21 +401,66 @@ export default function AdminPanelModal({
             <div>
               <h2 className="admin-modal-title">ส่วนผู้ดูแลระบบ (Admin Control Center)</h2>
               <span className="admin-modal-sub">
-                {isUnlocked ? `จัดการห้อง: ${selectedRoomObj.name}` : 'ยืนยันรหัสห้องเรียนเพื่อเข้าสู่โหมดแก้ไข'}
+                {adminTab === 'add-room'
+                  ? `จัดการและเพิ่ม/ลบห้องเรียนทั้งหมด (${allRooms.length} ห้อง)`
+                  : adminTab === 'users'
+                    ? `ฐานข้อมูลสมาชิกที่ลงทะเบียน (${usersList.length} คน)`
+                    : isUnlocked
+                      ? `จัดการตารางเรียน: ${selectedRoomObj.name}`
+                      : 'ยืนยันรหัสห้องเรียนเพื่อเข้าสู่โหมดแก้ไข'}
               </span>
             </div>
           </div>
-          <button 
-            className="modal-close-icon-btn" 
-            onClick={onClose} 
+          <button
+            className="modal-close-icon-btn"
+            onClick={onClose}
             aria-label="ปิดหน้าต่าง"
           >
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
 
-        {/* STEP 1: ROOM CODE UNLOCK SCREEN */}
-        {!isUnlocked ? (
+        {/* Admin Navigation Tabs: Always accessible to switch to Add/Delete Classroom */}
+        <div className="admin-main-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminTab === 'schedule'}
+            className={`admin-main-tab-btn ${adminTab === 'schedule' ? 'active' : ''}`}
+            onClick={() => setAdminTab('schedule')}
+          >
+            <span className="material-symbols-outlined">calendar_today</span>
+            <span>ตารางเรียนห้อง {selectedRoomObj.id}</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminTab === 'users'}
+            className={`admin-main-tab-btn ${adminTab === 'users' ? 'active' : ''}`}
+            onClick={() => {
+              setAdminTab('users');
+              setUsersList(getRegisteredUsers());
+            }}
+          >
+            <span className="material-symbols-outlined">people</span>
+            <span>ฐานข้อมูลสมาชิก ({usersList.length})</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminTab === 'add-room'}
+            className={`admin-main-tab-btn ${adminTab === 'add-room' ? 'active' : ''}`}
+            onClick={() => setAdminTab('add-room')}
+          >
+            <span className="material-symbols-outlined">add_business</span>
+            <span>➕ เพิ่ม & ลบห้องเรียน ({allRooms.length})</span>
+          </button>
+        </div>
+
+        {/* CONTENT SECTION: If schedule tab is selected and not unlocked, show unlock card */}
+        {(!isUnlocked && adminTab === 'schedule') ? (
           <div className="admin-unlock-card">
             <div className="admin-lock-illustration">
               <span className="material-symbols-outlined lock-icon">lock</span>
@@ -355,7 +474,7 @@ export default function AdminPanelModal({
             <form onSubmit={handleUnlockRoom} className="admin-unlock-form">
               <div className="form-group">
                 <label className="form-label">เลือกห้องเรียนที่ต้องการจัดการ</label>
-                <select 
+                <select
                   className="form-select"
                   value={selectedRoomId}
                   onChange={(e) => {
@@ -376,7 +495,7 @@ export default function AdminPanelModal({
                 <label className="form-label">รหัสผ่านประจำห้อง (Room Security Passcode)</label>
                 <div className="input-with-icon">
                   <span className="material-symbols-outlined">key</span>
-                  <input 
+                  <input
                     type="password"
                     className="form-input"
                     placeholder={`กรอกรหัสของห้อง ${selectedRoomObj.id} (เช่น ${selectedRoomObj.adminCode})`}
@@ -386,8 +505,8 @@ export default function AdminPanelModal({
                 </div>
                 <div className="quick-code-hint">
                   <span>💡 รหัสผ่านตัวอย่างของห้องนี้: </span>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className="btn-quick-fill"
                     onClick={() => setPasscode(selectedRoomObj.adminCode)}
                   >
@@ -417,7 +536,7 @@ export default function AdminPanelModal({
             {/* Logged-in Admin Profile Quickbar */}
             {currentUser && (
               <div className="admin-profile-quickbar">
-                <div 
+                <div
                   className="admin-quickbar-avatar-wrap"
                   onClick={() => setAvatarModalUser(currentUser)}
                   title="คลิกเพื่อเปลี่ยนรูปโปรไฟล์แอดมิน"
@@ -440,8 +559,8 @@ export default function AdminPanelModal({
                     <span>รหัส: {currentUser.studentId}</span>
                   </div>
                 </div>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn-admin-change-avatar"
                   onClick={() => setAvatarModalUser(currentUser)}
                   title="เปลี่ยนรูปโปรไฟล์แอดมิน"
@@ -452,79 +571,40 @@ export default function AdminPanelModal({
               </div>
             )}
 
-            {/* Top Room Banner with Student Counts */}
-            <div className="admin-room-status-bar">
-              <div className="room-status-info">
-                <span className="room-active-pill">
-                  <span className="pulse-dot"></span>
-                  ห้อง: {selectedRoomObj.name}
-                </span>
-                <div className="room-stats-chips">
-                  <span className="chip-stat total-students" title="จำนวนสมาชิกทั้งหมดในห้องเรียนนี้">
-                    <span className="material-symbols-outlined">groups</span>
-                    สมาชิกในห้องนี้: <strong>{totalRoomMembers} คน</strong> ({roomRegisteredCount} สมัครใหม่)
-                  </span>
-                  <span className="chip-stat advisor-stat">
-                    <span className="material-symbols-outlined">person</span>
-                    ที่ปรึกษา: {selectedRoomObj.advisor || 'คณาจารย์ประจำห้อง'}
-                  </span>
-                </div>
-              </div>
-
-              <button 
-                className="btn-change-room"
-                onClick={() => {
-                  setIsUnlocked(false);
-                  setPasscode('');
-                }}
-              >
-                <span className="material-symbols-outlined">swap_horiz</span>
-                สลับห้อง
-              </button>
-            </div>
-
-            {/* Admin Function Tabs: Schedule | Users Database | Add Classroom */}
-            <div className="admin-main-tabs" role="tablist">
-              <button 
-                type="button"
-                role="tab"
-                aria-selected={adminTab === 'schedule'}
-                className={`admin-main-tab-btn ${adminTab === 'schedule' ? 'active' : ''}`}
-                onClick={() => setAdminTab('schedule')}
-              >
-                <span className="material-symbols-outlined">calendar_today</span>
-                <span>ตารางเรียนห้อง {selectedRoomObj.id}</span>
-              </button>
-
-              <button 
-                type="button"
-                role="tab"
-                aria-selected={adminTab === 'users'}
-                className={`admin-main-tab-btn ${adminTab === 'users' ? 'active' : ''}`}
-                onClick={() => {
-                  setAdminTab('users');
-                  setUsersList(getRegisteredUsers());
-                }}
-              >
-                <span className="material-symbols-outlined">people</span>
-                <span>ฐานข้อมูลสมาชิก ({usersList.length})</span>
-              </button>
-
-              <button 
-                type="button"
-                role="tab"
-                aria-selected={adminTab === 'add-room'}
-                className={`admin-main-tab-btn ${adminTab === 'add-room' ? 'active' : ''}`}
-                onClick={() => setAdminTab('add-room')}
-              >
-                <span className="material-symbols-outlined">add_business</span>
-                <span>➕ เพิ่มห้องเรียนใหม่</span>
-              </button>
-            </div>
-
             {/* TAB 1: SCHEDULE MANAGEMENT */}
             {adminTab === 'schedule' && (
               <div>
+                {/* Top Room Banner with Student Counts */}
+                <div className="admin-room-status-bar">
+                  <div className="room-status-info">
+                    <span className="room-active-pill">
+                      <span className="pulse-dot"></span>
+                      ห้อง: {selectedRoomObj.name}
+                    </span>
+                    <div className="room-stats-chips">
+                      <span className="chip-stat total-students" title="จำนวนสมาชิกทั้งหมดในห้องเรียนนี้">
+                        <span className="material-symbols-outlined">groups</span>
+                        สมาชิกในห้องนี้: <strong>{totalRoomMembers} คน</strong> ({roomRegisteredCount} สมัครใหม่)
+                      </span>
+                      <span className="chip-stat advisor-stat">
+                        <span className="material-symbols-outlined">person</span>
+                        ที่ปรึกษา: {selectedRoomObj.advisor || 'คณาจารย์ประจำห้อง'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    className="btn-change-room"
+                    onClick={() => {
+                      setIsUnlocked(false);
+                      setPasscode('');
+                    }}
+                  >
+                    <span className="material-symbols-outlined">swap_horiz</span>
+                    สลับห้อง
+                  </button>
+                </div>
+
                 {/* Day Selector */}
                 <div className="admin-day-tabs">
                   {[
@@ -554,8 +634,8 @@ export default function AdminPanelModal({
                   <h3 className="admin-section-heading">
                     วิชาในวัน{activeDay === 'mon' ? 'จันทร์' : activeDay === 'tue' ? 'อังคาร' : activeDay === 'wed' ? 'พุธ' : activeDay === 'thu' ? 'พฤหัสบดี' : 'ศุกร์'} ({currentDayCourses.filter(c => !c.isLunchBreak).length} วิชา)
                   </h3>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className="btn-add-course"
                     onClick={handleOpenAddCourse}
                   >
@@ -578,9 +658,9 @@ export default function AdminPanelModal({
                     <div className="form-row two-col">
                       <div className="form-group">
                         <label className="form-label">รหัสวิชา *</label>
-                        <input 
-                          type="text" 
-                          className="form-input" 
+                        <input
+                          type="text"
+                          className="form-input"
                           placeholder="เช่น CS210"
                           value={formData.courseCode}
                           onChange={(e) => setFormData({ ...formData, courseCode: e.target.value })}
@@ -589,9 +669,9 @@ export default function AdminPanelModal({
                       </div>
                       <div className="form-group">
                         <label className="form-label">ชื่อวิชา *</label>
-                        <input 
-                          type="text" 
-                          className="form-input" 
+                        <input
+                          type="text"
+                          className="form-input"
                           placeholder="เช่น การเขียนโปรแกรมเชิงวัตถุ"
                           value={formData.courseName}
                           onChange={(e) => setFormData({ ...formData, courseName: e.target.value })}
@@ -603,9 +683,9 @@ export default function AdminPanelModal({
                     <div className="form-row two-col">
                       <div className="form-group">
                         <label className="form-label">เวลาเริ่มเรียน (เริ่มคำนวณเวลาจริง)</label>
-                        <input 
-                          type="time" 
-                          className="form-input" 
+                        <input
+                          type="time"
+                          className="form-input"
                           value={formData.startTime}
                           onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
                           required
@@ -613,9 +693,9 @@ export default function AdminPanelModal({
                       </div>
                       <div className="form-group">
                         <label className="form-label">เวลาเลิกเรียน</label>
-                        <input 
-                          type="time" 
-                          className="form-input" 
+                        <input
+                          type="time"
+                          className="form-input"
                           value={formData.endTime}
                           onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
                           required
@@ -626,9 +706,9 @@ export default function AdminPanelModal({
                     <div className="form-row three-col">
                       <div className="form-group">
                         <label className="form-label">ตึก / อาคาร</label>
-                        <input 
-                          type="text" 
-                          className="form-input" 
+                        <input
+                          type="text"
+                          className="form-input"
                           placeholder="เช่น ตึก 5 คณะ IT"
                           value={formData.building}
                           onChange={(e) => setFormData({ ...formData, building: e.target.value })}
@@ -636,9 +716,9 @@ export default function AdminPanelModal({
                       </div>
                       <div className="form-group">
                         <label className="form-label">ชั้น</label>
-                        <input 
-                          type="text" 
-                          className="form-input" 
+                        <input
+                          type="text"
+                          className="form-input"
                           placeholder="เช่น ชั้น 7"
                           value={formData.floor}
                           onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
@@ -646,9 +726,9 @@ export default function AdminPanelModal({
                       </div>
                       <div className="form-group">
                         <label className="form-label">ห้องเรียน</label>
-                        <input 
-                          type="text" 
-                          className="form-input" 
+                        <input
+                          type="text"
+                          className="form-input"
                           placeholder="เช่น ห้อง 705"
                           value={formData.room}
                           onChange={(e) => setFormData({ ...formData, room: e.target.value })}
@@ -659,9 +739,9 @@ export default function AdminPanelModal({
                     <div className="form-row two-col">
                       <div className="form-group">
                         <label className="form-label">อาจารย์ผู้สอน</label>
-                        <input 
-                          type="text" 
-                          className="form-input" 
+                        <input
+                          type="text"
+                          className="form-input"
                           placeholder="เช่น ผศ.ดร. นภาพร จิตมั่นคง"
                           value={formData.instructor}
                           onChange={(e) => setFormData({ ...formData, instructor: e.target.value })}
@@ -669,9 +749,9 @@ export default function AdminPanelModal({
                       </div>
                       <div className="form-group">
                         <label className="form-label">อีเมลอาจารย์</label>
-                        <input 
-                          type="email" 
-                          className="form-input" 
+                        <input
+                          type="email"
+                          className="form-input"
                           placeholder="เช่น instructor@university.ac.th"
                           value={formData.instructorEmail}
                           onChange={(e) => setFormData({ ...formData, instructorEmail: e.target.value })}
@@ -680,8 +760,8 @@ export default function AdminPanelModal({
                     </div>
 
                     <div className="form-btn-actions">
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         className="btn-cancel"
                         onClick={() => {
                           setEditingItem(null);
@@ -759,8 +839,8 @@ export default function AdminPanelModal({
 
                             <div className="admin-item-actions">
                               {/* Dedicated Button for Cancelling Class / Online / Assigning Work */}
-                              <button 
-                                type="button" 
+                              <button
+                                type="button"
                                 className={`btn-status-action ${c.isCancelled ? 'cancelled-active' : c.isOnline ? 'online-active' : ''}`}
                                 onClick={() => handleOpenClassStatusModal(c)}
                                 title="ปุ่มกดยกคลาส / เรียนออนไลน์ และใส่ข้อมูลงาน"
@@ -771,7 +851,7 @@ export default function AdminPanelModal({
                                 <span>{c.isCancelled ? 'ยกคลาสแล้ว' : c.isOnline ? 'ออนไลน์' : 'ยกคลาส/สั่งงาน'}</span>
                               </button>
 
-                              <button 
+                              <button
                                 type="button"
                                 className="btn-action edit"
                                 onClick={() => handleOpenEditCourse(c)}
@@ -779,7 +859,7 @@ export default function AdminPanelModal({
                               >
                                 <span className="material-symbols-outlined">edit</span>
                               </button>
-                              <button 
+                              <button
                                 type="button"
                                 className="btn-action delete"
                                 onClick={() => handleDeleteCourse(c.id)}
@@ -811,8 +891,8 @@ export default function AdminPanelModal({
                   </div>
                   <div className="user-search-box">
                     <span className="material-symbols-outlined">search</span>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="ค้นหาตามเลขบัตร หรือชื่อ..."
                       value={userSearch}
                       onChange={(e) => setUserSearch(e.target.value)}
@@ -846,7 +926,7 @@ export default function AdminPanelModal({
                           return (
                             <tr key={user.studentId} className={user.roomId === selectedRoomObj.id ? 'highlight-current-room' : ''}>
                               <td>
-                                <div 
+                                <div
                                   className={`user-table-avatar-cell ${isSelf ? 'clickable is-self' : 'readonly'}`}
                                   onClick={isSelf ? () => setAvatarModalUser(currentUser) : undefined}
                                   title={isSelf ? 'รูปโปรไฟล์ของคุณ (คลิกเพื่อแก้ไข)' : `รูปโปรไฟล์ของ ${user.fullName}`}
@@ -886,7 +966,7 @@ export default function AdminPanelModal({
                                 {user.registeredAt || 'เริ่มต้นระบบ'}
                               </td>
                               <td>
-                                <button 
+                                <button
                                   type="button"
                                   className="btn-user-delete"
                                   onClick={() => handleDeleteUser(user.studentId)}
@@ -911,9 +991,9 @@ export default function AdminPanelModal({
                 <div className="add-room-banner">
                   <span className="material-symbols-outlined banner-icon">meeting_room</span>
                   <div>
-                    <h3 className="admin-section-heading">เพิ่มห้องเรียนใหม่เข้าสู่ระบบ</h3>
+                    <h3 className="admin-section-heading">เพิ่มและลบห้องเรียน (จัดการห้องเรียนทั้งหมดในระบบ)</h3>
                     <p className="admin-section-sub">
-                      ผู้ดูแลสามารถเปิดห้องเรียนใหม่ กำหนดรหัสความปลอดภัย และระบบจะสร้างตารางเรียนแยกของห้องนั้นให้อัตโนมัติ
+                      ผู้ดูแลสามารถเปิดห้องเรียนใหม่ หรือเลือกลบห้องเรียนที่ไม่ต้องการใช้งานออกจากระบบได้ พร้อมระบบถามยืนยันความปลอดภัยก่อนลบ
                     </p>
                   </div>
                 </div>
@@ -936,9 +1016,9 @@ export default function AdminPanelModal({
                   <div className="form-row two-col">
                     <div className="form-group">
                       <label className="form-label">รหัสห้องเรียน (Room Code / ID) *</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
+                      <input
+                        type="text"
+                        className="form-input"
                         placeholder="เช่น CS-202 หรือ IT-102"
                         value={newRoomForm.id}
                         onChange={(e) => setNewRoomForm({ ...newRoomForm, id: e.target.value })}
@@ -949,9 +1029,9 @@ export default function AdminPanelModal({
 
                     <div className="form-group">
                       <label className="form-label">ชื่อห้องเรียนแบบเต็ม *</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
+                      <input
+                        type="text"
+                        className="form-input"
                         placeholder="เช่น CS-202 : วิทยาการคอมพิวเตอร์ ปี 2 ห้อง 2"
                         value={newRoomForm.name}
                         onChange={(e) => setNewRoomForm({ ...newRoomForm, name: e.target.value })}
@@ -963,9 +1043,9 @@ export default function AdminPanelModal({
                   <div className="form-row two-col">
                     <div className="form-group">
                       <label className="form-label">รหัสผ่านความปลอดภัยของ Admin ประจำห้อง *</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
+                      <input
+                        type="text"
+                        className="form-input"
                         placeholder="เช่น CS202 หรือรหัสลับ"
                         value={newRoomForm.adminCode}
                         onChange={(e) => setNewRoomForm({ ...newRoomForm, adminCode: e.target.value })}
@@ -976,9 +1056,9 @@ export default function AdminPanelModal({
 
                     <div className="form-group">
                       <label className="form-label">จำนวนนักศึกษาในห้อง (ความจุ)</label>
-                      <input 
-                        type="number" 
-                        className="form-input" 
+                      <input
+                        type="number"
+                        className="form-input"
                         placeholder="เช่น 40"
                         value={newRoomForm.studentCount}
                         onChange={(e) => setNewRoomForm({ ...newRoomForm, studentCount: e.target.value })}
@@ -991,9 +1071,9 @@ export default function AdminPanelModal({
                   <div className="form-row two-col">
                     <div className="form-group">
                       <label className="form-label">คณะ / ภาควิชา</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
+                      <input
+                        type="text"
+                        className="form-input"
                         placeholder="เช่น คณะเทคโนโลยีสารสนเทศ"
                         value={newRoomForm.department}
                         onChange={(e) => setNewRoomForm({ ...newRoomForm, department: e.target.value })}
@@ -1002,9 +1082,9 @@ export default function AdminPanelModal({
 
                     <div className="form-group">
                       <label className="form-label">อาจารย์ที่ปรึกษาประจำห้อง</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
+                      <input
+                        type="text"
+                        className="form-input"
                         placeholder="เช่น ดร. สมชาย มั่นคง"
                         value={newRoomForm.advisor}
                         onChange={(e) => setNewRoomForm({ ...newRoomForm, advisor: e.target.value })}
@@ -1020,20 +1100,91 @@ export default function AdminPanelModal({
 
                 {/* List of Existing Classrooms */}
                 <div className="existing-rooms-list">
-                  <h4 className="existing-rooms-title">ห้องเรียนทั้งหมดในระบบ ({allRooms.length} ห้อง):</h4>
+                  <div className="existing-rooms-header">
+                    <div className="existing-rooms-title-group">
+                      <h4 className="existing-rooms-title">
+                        <span className="material-symbols-outlined">domain</span>
+                        ห้องเรียนทั้งหมดในระบบ ({allRooms.length} ห้อง):
+                      </h4>
+                      <p className="existing-rooms-subtitle">
+                        กดปุ่ม <strong>"ลบห้องเรียนนี้"</strong> ที่การ์ดห้องเรียนด้านล่าง หรือเลือกห้องจากเมนูด้านขวาเพื่อลบ (ระบบจะแสดงหน้าต่างถามยืนยันความปลอดภัยก่อนลบเสมอ)
+                      </p>
+                    </div>
+
+                    {/* Quick Delete Dropdown Selector */}
+                    <div className="quick-delete-bar">
+                      <span className="quick-delete-label">
+                        <span className="material-symbols-outlined">delete_sweep</span>
+                        เลือกลบห้องเรียนด่วน:
+                      </span>
+                      <div className="quick-delete-controls">
+                        <select
+                          className="form-select quick-delete-select"
+                          value={quickDeleteTargetId}
+                          onChange={(e) => setQuickDeleteTargetId(e.target.value)}
+                          aria-label="เลือกห้องเรียนเพื่อลบ"
+                        >
+                          <option value="">-- เลือกห้องเรียนเพื่อลบ --</option>
+                          {allRooms.map((rm) => (
+                            <option key={rm.id} value={rm.id}>
+                              ห้อง {rm.id} ({rm.name})
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="btn-quick-delete"
+                          disabled={!quickDeleteTargetId || allRooms.length <= 1}
+                          onClick={() => {
+                            const target = allRooms.find((rm) => rm.id === quickDeleteTargetId);
+                            if (target) {
+                              handleRequestDeleteRoom(target);
+                            }
+                          }}
+                          title={allRooms.length <= 1 ? "ไม่สามารถลบห้องสุดท้ายได้" : "กดยืนยันการลบห้องที่เลือก"}
+                        >
+                          <span className="material-symbols-outlined">delete</span>
+                          <span>ลบห้องที่เลือก</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                   <div className="rooms-cards-grid">
                     {allRooms.map((r) => {
                       const regCount = getRoomRegisteredStudentsCount(r.id);
+                      const isCurrent = r.id === selectedRoomId;
                       return (
-                        <div key={r.id} className="room-card-preview">
+                        <div key={r.id} className={`room-card-preview ${isCurrent ? 'active-room-card' : ''}`}>
                           <div className="preview-top">
-                            <span className="preview-room-id">{r.id}</span>
-                            <span className="preview-admin-code">รหัสผ่าน: {r.adminCode}</span>
+                            <div className="preview-left-badge">
+                              <span className="preview-room-id">{r.id}</span>
+                              {isCurrent && <span className="preview-current-tag">ห้องปัจจุบัน</span>}
+                            </div>
+                            <span className="preview-admin-code">รหัส: {r.adminCode}</span>
                           </div>
                           <h5 className="preview-room-name">{r.name}</h5>
                           <div className="preview-meta">
                             <span>👥 {(r.studentCount || 35) + regCount} คน ({regCount} สมัคร)</span>
                             <span>• {r.department}</span>
+                          </div>
+                          {r.advisor && (
+                            <div className="preview-advisor-row">
+                              <span className="material-symbols-outlined">school</span>
+                              <span>ที่ปรึกษา: {r.advisor}</span>
+                            </div>
+                          )}
+                          <div className="preview-footer-action">
+                            <button
+                              type="button"
+                              className="btn-delete-room"
+                              onClick={() => handleRequestDeleteRoom(r)}
+                              title={allRooms.length <= 1 ? "ไม่สามารถลบห้องสุดท้ายได้ (ต้องมีอย่างน้อย 1 ห้อง)" : `ลบห้องเรียน ${r.id}`}
+                              disabled={allRooms.length <= 1}
+                              aria-label={`ลบห้องเรียน ${r.id}`}
+                            >
+                              <span className="material-symbols-outlined">delete</span>
+                              <span>ลบห้องเรียนนี้</span>
+                            </button>
                           </div>
                         </div>
                       );
@@ -1054,9 +1205,9 @@ export default function AdminPanelModal({
                   <span className="material-symbols-outlined submodal-icon">notification_important</span>
                   <h4>จัดการสถานะคาบเรียน & มอบหมายงาน</h4>
                 </div>
-                <button 
-                  type="button" 
-                  className="modal-close-icon-btn" 
+                <button
+                  type="button"
+                  className="modal-close-icon-btn"
                   onClick={() => setStatusModalCourse(null)}
                 >
                   <span className="material-symbols-outlined">close</span>
@@ -1072,7 +1223,7 @@ export default function AdminPanelModal({
                 <div className="form-group">
                   <label className="form-label">เลือกสถานะการเรียนการสอนสำหรับคลาสนี้</label>
                   <div className="class-status-choice-group">
-                    <button 
+                    <button
                       type="button"
                       className={`btn-choice-status normal ${classStateOption === 'normal' ? 'active' : ''}`}
                       onClick={() => setClassStateOption('normal')}
@@ -1081,7 +1232,7 @@ export default function AdminPanelModal({
                       <span>เรียนตามปกติ (On-site)</span>
                     </button>
 
-                    <button 
+                    <button
                       type="button"
                       className={`btn-choice-status cancel ${classStateOption === 'cancelled' ? 'active' : ''}`}
                       onClick={() => setClassStateOption('cancelled')}
@@ -1090,7 +1241,7 @@ export default function AdminPanelModal({
                       <span>🚫 ขอยกคลาส (Class Cancelled)</span>
                     </button>
 
-                    <button 
+                    <button
                       type="button"
                       className={`btn-choice-status online ${classStateOption === 'online' ? 'active' : ''}`}
                       onClick={() => setClassStateOption('online')}
@@ -1104,21 +1255,21 @@ export default function AdminPanelModal({
                 {/* Assignment & Notes input */}
                 <div className="form-group">
                   <label className="form-label">
-                    {classStateOption === 'cancelled' 
-                      ? 'งานที่มอบหมายแทนการเรียน / หมายเหตุการยกคลาส *' 
+                    {classStateOption === 'cancelled'
+                      ? 'งานที่มอบหมายแทนการเรียน / หมายเหตุการยกคลาส *'
                       : classStateOption === 'online'
-                      ? 'ลิงก์ห้องเรียนออนไลน์ (Zoom/Teams/Meet) หรือรายละเอียด *'
-                      : 'งานที่มอบหมาย / การบ้านเพิ่มเติม'}
+                        ? 'ลิงก์ห้องเรียนออนไลน์ (Zoom/Teams/Meet) หรือรายละเอียด *'
+                        : 'งานที่มอบหมาย / การบ้านเพิ่มเติม'}
                   </label>
-                  <textarea 
+                  <textarea
                     className="form-input form-textarea"
                     rows="3"
                     placeholder={
                       classStateOption === 'cancelled'
                         ? 'เช่น อาจารย์ติดภารกิจ ขอยกคลาสวันนี้ ให้นักศึกษาทำแบบฝึกหัดบทที่ 4 ส่งในระบบแทน'
                         : classStateOption === 'online'
-                        ? 'เช่น เรียนผ่าน Google Meet: https://meet.google.com/xxx-xxxx-xxx'
-                        : 'เช่น การบ้านบทที่ 2 ส่งสัปดาห์หน้า'
+                          ? 'เช่น เรียนผ่าน Google Meet: https://meet.google.com/xxx-xxxx-xxx'
+                          : 'เช่น การบ้านบทที่ 2 ส่งสัปดาห์หน้า'
                     }
                     value={classAssignmentInput}
                     onChange={(e) => setClassAssignmentInput(e.target.value)}
@@ -1129,9 +1280,9 @@ export default function AdminPanelModal({
                 </div>
 
                 <div className="submodal-actions">
-                  <button 
-                    type="button" 
-                    className="btn-modal-secondary" 
+                  <button
+                    type="button"
+                    className="btn-modal-secondary"
                     onClick={() => setStatusModalCourse(null)}
                   >
                     ยกเลิก
@@ -1146,6 +1297,88 @@ export default function AdminPanelModal({
           </div>
         )}
 
+
+        {/* SUBMODAL: CONFIRM DELETE CLASSROOM (มีถามยืนยันอีกรอบว่าจะลบไหม) */}
+        {roomToDelete && (
+          <div className="submodal-overlay delete-confirm-overlay" onClick={() => setRoomToDelete(null)}>
+            <div className="submodal-card delete-confirm-card" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true">
+              <div className="delete-confirm-header">
+                <div className="delete-confirm-icon-circle">
+                  <span className="material-symbols-outlined">warning</span>
+                </div>
+                <div className="delete-confirm-title-wrap">
+                  <h4 className="delete-confirm-title">ยืนยันการลบห้องเรียนหรือไม่?</h4>
+                  <span className="delete-confirm-sub">กรุณาตรวจสอบข้อมูลก่อนทำการลบออกจากระบบ</span>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close-icon-btn"
+                  onClick={() => setRoomToDelete(null)}
+                  aria-label="ยกเลิก"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="delete-confirm-body">
+                <div className="delete-room-target-box">
+                  <div className="target-badge-col">
+                    <span className="target-room-badge">{roomToDelete.id}</span>
+                  </div>
+                  <div className="target-info-col">
+                    <strong className="target-room-name">{roomToDelete.name}</strong>
+                    <div className="target-room-meta">
+                      <span>👥 สมาชิกในห้อง: {(roomToDelete.studentCount || 35) + (roomToDelete.regCount || 0)} คน</span>
+                      {roomToDelete.department && <span>• {roomToDelete.department}</span>}
+                      {roomToDelete.advisor && <span>• อ.ที่ปรึกษา: {roomToDelete.advisor}</span>}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="delete-danger-warning-box">
+                  <span className="material-symbols-outlined danger-icon">error</span>
+                  <div className="danger-text-content">
+                    <strong className="danger-headline">⚠️ คำเตือนสำคัญ: การกระทำนี้ไม่สามารถย้อนกลับได้!</strong>
+                    <ul className="danger-bullet-list">
+                      <li>ข้อมูลตารางเรียน รายวิชาทุกวันของห้อง <strong>{roomToDelete.id}</strong> จะถูกลบถาวร ไม่สามารถกู้คืนได้</li>
+                      {roomToDelete.regCount > 0 ? (
+                        <li className="warning-reassign">
+                          มีสมาชิกที่ลงทะเบียนในห้องนี้ <strong>{roomToDelete.regCount} คน</strong> (ระบบจะย้ายนักศึกษาไปยังห้องเรียนอื่นให้อัตโนมัติ เพื่อไม่ให้บัญชีสูญหาย)
+                        </li>
+                      ) : (
+                        <li>ห้องเรียนนี้จะถูกนำออกจากตัวเลือกในระบบทั้งหมด</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="delete-confirmation-prompt">
+                  คุณแน่ใจหรือไม่ว่าต้องการลบห้องเรียน <strong>"{roomToDelete.name || roomToDelete.id}"</strong> ({roomToDelete.id}) หรือไม่?
+                </div>
+
+                <div className="delete-confirm-actions">
+                  <button
+                    type="button"
+                    className="btn-modal-secondary btn-delete-cancel"
+                    onClick={() => setRoomToDelete(null)}
+                  >
+                    <span className="material-symbols-outlined">close</span>
+                    <span>ยกเลิก (ไม่ลบ)</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-danger-confirm-delete"
+                    onClick={handleConfirmDeleteRoom}
+                  >
+                    <span className="material-symbols-outlined">delete_forever</span>
+                    <span>ยืนยัน ลบห้องเรียนนี้ทันที</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal Bottom Footer */}
         <div className="modal-footer-actions">
           <button className="btn-modal-secondary" onClick={onClose}>
@@ -1155,7 +1388,7 @@ export default function AdminPanelModal({
 
         {/* Dedicated Avatar Picker for Admin Panel (change own or user avatar) */}
         {avatarModalUser && (
-          <AvatarPickerModal 
+          <AvatarPickerModal
             isOpen={Boolean(avatarModalUser)}
             targetUser={avatarModalUser}
             onClose={() => setAvatarModalUser(null)}
